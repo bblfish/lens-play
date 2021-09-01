@@ -18,7 +18,7 @@ import scala.collection.immutable.*
 object Server {
 	//for an intro to Monocle see the video https://twitter.com/bblfish/status/1413758476896153601
 	// and the thread of references above it.
-	// and the documentation https://www.optics.dev/Monocle/
+	// documentation https://www.optics.dev/Monocle/
 
 	sealed trait Resource[T] {
 		def content: T
@@ -72,8 +72,7 @@ object Server {
 	type Path = List[String]
 	/**
 	 * An Index gives a means to accessing and changing an element of our Container Tree
-	 * by path, a Non-Empty List. Why a NEL? Because we can replace an element in a container
-	 * but not the container itself, so the path must be non-empty.
+	 * by path.
 	 */
 	val ci: Index[Container, Path, Resource[?]] = Index(path =>
 		Optional[Container,Resource[_]]{cntr =>
