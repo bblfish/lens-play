@@ -9,8 +9,13 @@ import monocle.syntax.all.*
 import java.time.{Clock, Instant}
 import scala.collection.immutable.*
 
+/**
+ * The aim of this is to see what a very primitive web server using Lenses
+ * would look like, to see if this can bring some extra conceptual clarity
+ * to questions in Solid.
+ * See [[https://gitlab.com/web-cats/CG/-/issues/28 Web Cats Lenses issue 28]].
+ */
 object Server {
-
 	//for an intro to Monocle see the video https://twitter.com/bblfish/status/1413758476896153601
 	// and the thread of references above it.
 	// and the documentation https://www.optics.dev/Monocle/
@@ -21,6 +26,12 @@ object Server {
 		def created: Instant
 
 		//def modified: Instant
+	}
+
+	val counter: Iterator[Int] = new Iterator[Int] {
+		var c = 0
+		override def hasNext: Boolean = true
+		override def next(): Int = c+1
 	}
 
 	def now: Instant = Clock.systemUTC().instant()
@@ -52,52 +63,81 @@ object Server {
 	case class Response(code: Int, content: String)
 
 	val root = Container()
+	object LDPC
 
 //	val contents = Lens[Container, Map[String, Resource[_]]](_.content){ newmap =>
 //		cont => cont.copy(content = newmap)
 //	}
 
-	//we can replace an element in a container but not the container itself, so
-	//the path must be non-empty
-	val ci: Index[Container, NEL[String], Resource[_]] = Index(path =>
+	type Path = List[String]
+	/**
+	 * An Index gives a means to accessing and changing an element of our Container Tree
+	 * by path, a Non-Empty List. Why a NEL? Because we can replace an element in a container
+	 * but not the container itself, so the path must be non-empty.
+	 */
+	val ci: Index[Container, Path, Resource[?]] = Index(path =>
 		Optional[Container,Resource[_]]{cntr =>
-			def get(pos: Container, remainingPath: NEL[String]): Option[Resource[?]] =
+			def get(pos: Container, remainingPath: Path): Option[Resource[?]] =
 				remainingPath match
-				case NEL(head, Nil) => pos.content.get(head)
-				case NEL(head, h::tail) =>
+				case Nil => Some(pos)
+				case head:: Nil => pos.content.get(head)
+				case head::tail =>
 					pos.content.get(head) match
-					case Some(child: Container) => get(child, NEL(h,tail))
-					//if it is not a container we can't go further, and otherwise
+					case Some(child: Container) => get(child, tail)
+					//if it is not a container we can't go further
 					case _ => None
 			get(cntr,path)
 		}{ newRes => root =>
-			def replace(pos: Container, remainingPath: NEL[String]): Option[Container] =
+		  //calling code needs to make sure that the root container is not replaced by a resource
+			def replace(pos: Container, remainingPath: Path): Option[Resource[?]] =
 				remainingPath match
-					case NEL(head,Nil) =>
-						//we should check not to replace a non-empty container
+					case Nil => Some(newRes)
+					case head :: Nil =>
+						//should check that container is empty first if it is to be replaced.
 						val newMap = pos.content.updated(head,newRes)
 						Some(pos.copy(content=newMap))
-					case NEL(head, h::tail) =>
+					case head :: tail =>
 						pos.content.get(head) match
 							case Some(child: Container) =>
-								replace(child, NEL(h,tail)).map{newR =>
+								replace(child, tail).map{newR =>
 									val newMap = pos.content.updated(head, newR)
 									pos.copy(content=newMap)
 								}
 							case _ => None
-			replace(root, path).getOrElse(root)
+			replace(root, path) match
+				case ok@Some(container: Container) => container
+				//we can't overwrite the root container
+				case _ => root
 		})
 
-	// we should return the listing of the Map for a container
-	def GET(server: Container)(path: List[String]): Response =
-		def output: Option[Resource[?]] => Response =
-			case Some(ctnr: Container) => Response(200, ctnr.content.keys.mkString("• ","\n• ","\n"))
-			case Some(res) => Response(200, res.content.toString)
-			case None => Response(404,"Content could not be found")
-		if path.isEmpty then output(Some(server))
-		else output(ci.index(NEL(path.head,path.tail)).getOption(server))
+	extension(server: Container)
+		def GET(path: List[String]): Response =
+			def output: Option[Resource[?]] => Response =
+				case Some(ctnr: Container) => Response(200, ctnr.content.keys.mkString("• ","\n• ","\n"))
+				case Some(res) => Response(200, res.content.toString)
+				case None => Response(404,"Content could not be found")
 
-//	def POST(path: List[String], content: Resource[?]):
+			output(ci.index(path).getOption(server))
+
+      //clearly the response indicates we are dealing with a state monad with the state being the Container.
+		def POST(path: List[String])(slug: String)(newcontent: String|LDPC.type): (Container,Response) =
+			val mod: Container => Option[Container] = ci.index(path)
+			  .modifyOption{ (res: Resource[?]) =>
+				res match
+				case c : Container =>
+					val index: Map[String, Resource[_]] = c.content
+					val name = if index.get(slug).isEmpty then slug else s"${slug}_${counter.next()}"
+					val newRes = newcontent match
+						case LDPC => Container()
+						case text: String => TextResource(text)
+					c.copy(content=index.updated(name,newRes))
+				case r: Resource[?] => res //mhh we could append to resources if they are of the right type
+			}
+			mod(server) match
+			case Some(newC) => (newC,Response(200,"how do we pass the name of the new resource here?"))
+			case None =>    (server, Response(404, "container does not exist"))
+
+
 
 }
 
