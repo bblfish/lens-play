@@ -6,7 +6,9 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
        //https://repo1.maven.org/maven2/dev/optics/
       "dev.optics" %% "monocle-core"  % "3.0.0",
-//      "dev.optics" %% "monocle-macro" % "3.0.0" // only for Scala 2.13
+		 // @see [[https://scalameta.org/munit/docs/getting-started.html Getting Started]]
+	    // @see https://mvnrepository.com/artifact/org.scalameta/munit
+		 "org.scalameta" %% "munit" % "0.7.29" % Test
     )
   )
 

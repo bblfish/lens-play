@@ -20,14 +20,7 @@ object Server {
 	// and the thread of references above it.
 	// documentation https://www.optics.dev/Monocle/
 
-	sealed trait Resource[T] {
-		def content: T
-
-		def created: Instant
-
-		//def modified: Instant
-	}
-
+	// counter for Slugs
 	val counter: Iterator[Int] = new Iterator[Int] {
 		var c = 0
 		override def hasNext: Boolean = true
@@ -36,15 +29,17 @@ object Server {
 
 	def now: Instant = Clock.systemUTC().instant()
 
-	/**
-	 * a very simplified but potentially extensible model of a ldp:Container
-	 * to test a lens model of the web.
-	 * (see [[https://gitlab.com/web-cats/CG/-/issues/28 Lenses and the Web]]).
-	 *
-	 * We can think of a web server as just a root container with a number of resources
-	 * (which can themselves be containers), each named by a key of type String.
-	 * A path of such strings gives a URL Path.
-	 *
+	/* Resources have content and metadata, which we illustrate with `created`
+	 * This is a recursive datatype that allows us to model a nested Web Server
+	 * resource hierarchy. Containers are a subclass of Resources.
+	 * (see [[https://gitlab.com/web-cats/CG/-/issues/28 Lenses and the Web]])
+	 **/
+	sealed trait Resource[T] {
+		def content: T
+		def created: Instant
+	}
+
+	/*
 	 * Locating a resource is just a matter of following the hashmap hierarchy deeper
 	 * and deeper inwards.
 	 *
@@ -54,16 +49,21 @@ object Server {
 		created: Instant = now
 	) extends Resource[Map[String, Resource[_]]]
 
+	/**
+	 * We can think of a web server as just a root container with a number of resources
+	 * (which can themselves be containers), each named by a key of type String.
+	 * A path of such strings gives a URL Path.
+	 */
+	val root = Container()
+
 	// of course there could be many more Resources (eg. RDF Graphs, Pictures, etc)
 	case class TextResource(
 		content: String,
 		created: Instant = now
 	) extends Resource[String]
 
-	case class Response(code: Int, content: String)
-
-	val root = Container()
 	object LDPC
+	case class Response(code: Int, content: String)
 
 //	val contents = Lens[Container, Map[String, Resource[_]]](_.content){ newmap =>
 //		cont => cont.copy(content = newmap)
@@ -73,6 +73,8 @@ object Server {
 	/**
 	 * An Index gives a means to accessing and changing an element of our Container Tree
 	 * by path.
+	 * I could not find a way in Monocle to compose such a dynamic lens. It would be nice
+	 * if we could just rely on basic concepts from monocle more clearly.
 	 */
 	val ci: Index[Container, Path, Resource[?]] = Index(path =>
 		Optional[Container,Resource[_]]{cntr =>
@@ -109,16 +111,20 @@ object Server {
 				case _ => root
 		})
 
+	//extension methods on a Container. See test.sc in the same directory for useage.
 	extension(server: Container)
 		def GET(path: List[String]): Response =
 			def output: Option[Resource[?]] => Response =
-				case Some(ctnr: Container) => Response(200, ctnr.content.keys.mkString("• ","\n• ","\n"))
+				case Some(ctnr: Container) =>
+					Response(200, ctnr.content.keys.mkString("• ","\n• ","\n"))
 				case Some(res) => Response(200, res.content.toString)
 				case None => Response(404,"Content could not be found")
-
 			output(ci.index(path).getOption(server))
 
-      //clearly the response indicates we are dealing with a state monad with the state being the Container.
+      /** Create a new resource in the container at the given path.
+		 * if the new content is LDPC then create a container. (Better apis are of course possible)
+       * Clearly the response indicates we are dealing with a state monad with the state being the Container.
+       */
 		def POST(path: List[String])(slug: String)(newcontent: String|LDPC.type): (Container,Response) =
 			val mod: Container => Option[Container] = ci.index(path)
 			  .modifyOption{ (res: Resource[?]) =>
@@ -135,8 +141,6 @@ object Server {
 			mod(server) match
 			case Some(newC) => (newC,Response(200,"how do we pass the name of the new resource here?"))
 			case None =>    (server, Response(404, "container does not exist"))
-
-
 
 }
 
