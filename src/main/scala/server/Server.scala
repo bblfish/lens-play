@@ -13,7 +13,7 @@ import scala.collection.immutable.*
  * to questions in Solid.
  * See [[https://gitlab.com/web-cats/CG/-/issues/28 Web Cats Lenses issue 28]].
  *
- * Thanks to Ken Scrambler for major simplifications using Enum and list based indexes
+ * Thanks to Ken Scambler for major simplifications using Enum and list based indexes
  * [[https://discord.com/channels/632277896739946517/882978685936877608/883198894350163989 in Typelevel Monocle Discord Channel]]
  */
 object Server:
