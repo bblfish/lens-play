@@ -1,13 +1,16 @@
+import monocle.syntax.all._
+
 import cats.data.NonEmptyList as NEL
 import server.Server
-import Server.*
+import Server.{given,*}
 
-root.GET(List())
-val (v1,res) = root.POST(Nil)("hello")("world")
-v1.GET(Nil)
-res
-val (v2,res2) = v1.POST(Nil)("container1")(LDPC)
-val (v3, res3) = v2.POST(List("container1"))("readme.txt")("enter foo related content here")
-v3.GET(List("container1","readme.txt"))
+val Some(r1) = root.focus(_.index(Nil).as[Web.Container]).modifyOption{ (cntr: Web.Container) =>
+	val newMap = cntr.content.updated("hello",Web.TextResource("hello"))
+	cntr.copy(content=newMap)
+}
 
-val readmeNoExistent = v3.GET(List("container1","notcreated.txt"))
+r1.focus(_.index(List("hello"))).getOption
+
+r1.GET(List("hello"))
+
+

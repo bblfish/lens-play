@@ -1,8 +1,7 @@
 package server
 
 import cats.data.NonEmptyList as NEL
-import monocle.Lens
-import monocle.Optional
+import monocle.{Focus, Lens, Optional}
 import monocle.function.Index
 import monocle.syntax.all.*
 
@@ -14,8 +13,11 @@ import scala.collection.immutable.*
  * would look like, to see if this can bring some extra conceptual clarity
  * to questions in Solid.
  * See [[https://gitlab.com/web-cats/CG/-/issues/28 Web Cats Lenses issue 28]].
+ *
+ * Thanks to Ken Scrambler for major simplifications using Enum and list based indexes
+ * [[https://discord.com/channels/632277896739946517/882978685936877608/883198894350163989 in Typelevel Monocle Discord Channel]]
  */
-object Server {
+object Server:
 	//for an intro to Monocle see the video https://twitter.com/bblfish/status/1413758476896153601
 	// and the thread of references above it.
 	// documentation https://www.optics.dev/Monocle/
@@ -26,41 +28,31 @@ object Server {
 		override def hasNext: Boolean = true
 		override def next(): Int = c+1
 	}
-
 	def now: Instant = Clock.systemUTC().instant()
 
-	/* Resources have content and metadata, which we illustrate with `created`
-	 * This is a recursive datatype that allows us to model a nested Web Server
-	 * resource hierarchy. Containers are a subclass of Resources.
-	 * (see [[https://gitlab.com/web-cats/CG/-/issues/28 Lenses and the Web]])
-	 **/
-	sealed trait Resource[T] {
-		def content: T
-		def created: Instant
-	}
-
-	/*
-	 * Locating a resource is just a matter of following the hashmap hierarchy deeper
+	/** Resources have content and metadata, which we illustrate with `created` field.
+	 * Resource is a recursive datatype that allows us to model a nested Web Server
+	 * resource hierarchy.
+    *
+	 * Locating a resource is just a matter of following the Map hierarchy deeper
 	 * and deeper inwards.
-	 *
 	 **/
-	case class Container(
-		content: Map[String, Resource[_]] = Map(),
-		created: Instant = now
-	) extends Resource[Map[String, Resource[_]]]
+	enum Web:
+		case Container(content: Map[String, Web] = Map(), created: Instant = now)
+		//we currently only have a TextResource, but we could add a mime type and have
+		//the content as a binary string to cover all cases
+		case TextResource(content: String, created: Instant = now)
+
+		def summary: String = this match
+			case Container(content, _) => content.keys.mkString("- ","\n- ","\n")
+			case TextResource(content, _) => content
 
 	/**
 	 * We can think of a web server as just a root container with a number of resources
 	 * (which can themselves be containers), each named by a key of type String.
 	 * A path of such strings gives a URL Path.
 	 */
-	val root = Container()
-
-	// of course there could be many more Resources (eg. RDF Graphs, Pictures, etc)
-	case class TextResource(
-		content: String,
-		created: Instant = now
-	) extends Resource[String]
+	val root = Web.Container()
 
 	object LDPC
 	case class Response(code: Int, content: String)
@@ -70,79 +62,55 @@ object Server {
 //	}
 
 	type Path = List[String]
+
 	/**
-	 * An Index gives a means to accessing and changing an element of our Container Tree
-	 * by path.
-	 * I could not find a way in Monocle to compose such a dynamic lens. It would be nice
-	 * if we could just rely on basic concepts from monocle more clearly.
+	 * typeclass for a basic Index on a Container, locates it's positing in the
+	 * `content` Map.
 	 */
-	val ci: Index[Container, Path, Resource[?]] = Index(path =>
-		Optional[Container,Resource[_]]{cntr =>
-			def get(pos: Container, remainingPath: Path): Option[Resource[?]] =
-				remainingPath match
-				case Nil => Some(pos)
-				case head:: Nil => pos.content.get(head)
-				case head::tail =>
-					pos.content.get(head) match
-					case Some(child: Container) => get(child, tail)
-					//if it is not a container we can't go further
-					case _ => None
-			get(cntr,path)
-		}{ newRes => root =>
-		  //calling code needs to make sure that the root container is not replaced by a resource
-			def replace(pos: Container, remainingPath: Path): Option[Resource[?]] =
-				remainingPath match
-					case Nil => Some(newRes)
-					case head :: Nil =>
-						//should check that container is empty first if it is to be replaced.
-						val newMap = pos.content.updated(head,newRes)
-						Some(pos.copy(content=newMap))
-					case head :: tail =>
-						pos.content.get(head) match
-							case Some(child: Container) =>
-								replace(child, tail).map{newR =>
-									val newMap = pos.content.updated(head, newR)
-									pos.copy(content=newMap)
-								}
-							case _ => None
-			replace(root, path) match
-				case ok@Some(container: Container) => container
-				//we can't overwrite the root container
-				case _ => root
-		})
+	given Index[Web, String, Web] =
+		Index(key => Focus[Web](_.as[Web.Container].content.index(key)))
 
-	//extension methods on a Container. See test.sc in the same directory for useage.
-	extension(server: Container)
+	/**
+	 * typeclass for Index on a Container type S given a List of indexes.
+	 * This is defined recursively.
+	 * thanks to Ken Scrambler
+	 */
+	given [S, I](using Index[S, I, S]): Index[S, List[I], S] =
+		Index {
+			case Nil => Focus[S]()
+			case key :: keys => Focus[S](_.index(key).index(keys))
+		}
+
+	/**
+	 * The HTTP methods that one can use to interact with a Container.
+	 * See local <src/test/scala/server/ServerTests.scala> for usage.
+	 * Docs to look at:
+	 * [[https://www.optics.dev/Monocle/docs/focus monocle focus]]
+	 */
+	extension (server: Web)(using Index[Web, List[String], Web])
 		def GET(path: List[String]): Response =
-			def output: Option[Resource[?]] => Response =
-				case Some(ctnr: Container) =>
-					Response(200, ctnr.content.keys.mkString("• ","\n• ","\n"))
-				case Some(res) => Response(200, res.content.toString)
+			server.focus(_.index(path)).getOption match {
+				case Some(res) => Response(200, res.summary)
 				case None => Response(404,"Content could not be found")
-			output(ci.index(path).getOption(server))
-
-      /** Create a new resource in the container at the given path.
-		 * if the new content is LDPC then create a container. (Better apis are of course possible)
-       * Clearly the response indicates we are dealing with a state monad with the state being the Container.
-       */
-		def POST(path: List[String])(slug: String)(newcontent: String|LDPC.type): (Container,Response) =
-			val mod: Container => Option[Container] = ci.index(path)
-			  .modifyOption{ (res: Resource[?]) =>
-				res match
-				case c : Container =>
-					val index: Map[String, Resource[_]] = c.content
-					val name = if index.get(slug).isEmpty then slug else s"${slug}_${counter.next()}"
-					val newRes = newcontent match
-						case LDPC => Container()
-						case text: String => TextResource(text)
-					c.copy(content=index.updated(name,newRes))
-				case r: Resource[?] => res //mhh we could append to resources if they are of the right type
 			}
-			mod(server) match
-			case Some(newC) => (newC,Response(200,"how do we pass the name of the new resource here?"))
-			case None =>    (server, Response(404, "container does not exist"))
 
-}
+		def POST(path: List[String])(
+			slug: String, newcontent: String|LDPC.type
+		): (Web, Response) =
+			//we limit to Containers, though a POST to a resource would work if its content is a monoid
+			val newCntr: Option[Web] = server.focus(_.index(path).as[Web.Container])
+				.modifyOption{ (cntr: Web.Container) =>
+				val index: Map[String, Web] = cntr.content
+				val name = if index.get(slug).isEmpty then slug else s"${slug}_${counter.next()}"
+				val newRes = newcontent match
+					case LDPC => Web.Container()
+					case text: String => Web.TextResource(text)
+				cntr.copy(content=index.updated(name,newRes))
+			}
+			newCntr match
+			case Some(newC : Web.Container) => (newC, Response(200,"how do we pass the name of the new resource here?"))
+			case Some(resource) => (server, Response(500, "internatl server erorr. Seem to be replacing root container with a resource"))
+			case None =>       (server, Response(404, "container does not exist"))
 
 
 
