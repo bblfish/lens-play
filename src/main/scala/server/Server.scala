@@ -37,8 +37,8 @@ object Server:
 	 * Locating a resource is just a matter of following the Map hierarchy deeper
 	 * and deeper inwards.
 	 **/
-	enum Web:
-		case Container(content: Map[String, Web] = Map(), created: Instant = now)
+	enum Resource:
+		case Container(content: Map[String, Resource] = Map(), created: Instant = now)
 		//we currently only have a TextResource, but we could add a mime type and have
 		//the content as a binary string to cover all cases
 		case TextResource(content: String, created: Instant = now)
@@ -52,7 +52,7 @@ object Server:
 	 * (which can themselves be containers), each named by a key of type String.
 	 * A path of such strings gives a URL Path.
 	 */
-	val root = Web.Container()
+	val root = Resource.Container()
 
 	object LDPC
 	case class Response(code: Int, content: String)
@@ -67,8 +67,8 @@ object Server:
 	 * typeclass for a basic Index on a Container, locates it's positing in the
 	 * `content` Map.
 	 */
-	given Index[Web, String, Web] =
-		Index(key => Focus[Web](_.as[Web.Container].content.index(key)))
+	given Index[Resource, String, Resource] =
+		Index(key => Focus[Resource](_.as[Resource.Container].content.index(key)))
 
 	/**
 	 * typeclass for Index on a Container type S given a List of indexes.
@@ -87,7 +87,7 @@ object Server:
 	 * Docs to look at:
 	 * [[https://www.optics.dev/Monocle/docs/focus monocle focus]]
 	 */
-	extension (server: Web)(using Index[Web, List[String], Web])
+	extension (server: Resource)(using Index[Resource, List[String], Resource])
 		def GET(path: List[String]): Response =
 			server.focus(_.index(path)).getOption match {
 				case Some(res) => Response(200, res.summary)
@@ -96,19 +96,19 @@ object Server:
 
 		def POST(path: List[String])(
 			slug: String, newcontent: String|LDPC.type
-		): (Web, Response) =
+		): (Resource, Response) =
 			//we limit to Containers, though a POST to a resource would work if its content is a monoid
-			val newCntr: Option[Web] = server.focus(_.index(path).as[Web.Container])
-				.modifyOption{ (cntr: Web.Container) =>
-				val index: Map[String, Web] = cntr.content
+			val newCntr: Option[Resource] = server.focus(_.index(path).as[Resource.Container])
+				.modifyOption{ (cntr: Resource.Container) =>
+				val index: Map[String, Resource] = cntr.content
 				val name = if index.get(slug).isEmpty then slug else s"${slug}_${counter.next()}"
 				val newRes = newcontent match
-					case LDPC => Web.Container()
-					case text: String => Web.TextResource(text)
+					case LDPC => Resource.Container()
+					case text: String => Resource.TextResource(text)
 				cntr.copy(content=index.updated(name,newRes))
 			}
 			newCntr match
-			case Some(newC : Web.Container) => (newC, Response(200,"how do we pass the name of the new resource here?"))
+			case Some(newC : Resource.Container) => (newC, Response(200,"how do we pass the name of the new resource here?"))
 			case Some(resource) => (server, Response(500, "internatl server erorr. Seem to be replacing root container with a resource"))
 			case None =>       (server, Response(404, "container does not exist"))
 

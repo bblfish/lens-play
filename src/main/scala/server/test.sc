@@ -4,8 +4,8 @@ import cats.data.NonEmptyList as NEL
 import server.Server
 import Server.{given,*}
 
-val Some(r1) = root.focus(_.index(Nil).as[Web.Container]).modifyOption{ (cntr: Web.Container) =>
-	val newMap = cntr.content.updated("hello",Web.TextResource("hello"))
+val Some(r1) = root.focus(_.index(Nil).as[Resource.Container]).modifyOption{ (cntr: Resource.Container) =>
+	val newMap = cntr.content.updated("hello",Resource.TextResource("hello"))
 	cntr.copy(content=newMap)
 }
 
