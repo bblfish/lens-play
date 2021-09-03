@@ -48,6 +48,7 @@ object Server:
 		def summary: String = this match
 			case Container(content, _) => content.keys.mkString("- ", "\n- ", "\n")
 			case TextResource(content, _) => content
+	end Resource
 
 	/**
 	 * We can think of a web server as just a root container with a number of resources
@@ -114,6 +115,6 @@ object Server:
 			case Some(newC: Resource.Container) => (newC, Response(200, "how do we pass the name of the new resource here?"))
 			case Some(resource) => (server, Response(500, "internatl server erorr. Seem to be replacing root container with a resource"))
 			case None => (server, Response(404, "container does not exist"))
-
+end Server
 
 
