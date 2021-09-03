@@ -77,7 +77,7 @@ object Server:
 	/**
 	 * typeclass for Index on a Container type S given a List of indexes.
 	 * This is defined recursively.
-	 * thanks to Ken Scrambler
+	 * thanks to Ken Scambler
 	 */
 	given [S, I](using Index[S, I, S]): Index[S, List[I], S] =
 		Index {
