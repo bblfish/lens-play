@@ -15,22 +15,11 @@ import scala.collection.immutable.*
  *
  * Thanks to Ken Scambler for major simplifications using Enum and list based indexes
  * [[https://discord.com/channels/632277896739946517/882978685936877608/883198894350163989 in Typelevel Monocle Discord Channel]]
+ *
+ * For an intro to Monocle see the video https://twitter.com/bblfish/status/1413758476896153601
+ * and the thread of references above it. Documentation https://www.optics.dev/Monocle/
  */
 object Server:
-	//for an intro to Monocle see the video https://twitter.com/bblfish/status/1413758476896153601
-	// and the thread of references above it.
-	// documentation https://www.optics.dev/Monocle/
-
-	// counter for Slugs
-	val counter: Iterator[Int] = new Iterator[Int] {
-		var c = 0
-
-		override def hasNext: Boolean = true
-
-		override def next(): Int = c + 1
-	}
-
-	def now: Instant = Clock.systemUTC().instant()
 
 	/** LDP stands for [[https://www.w3.org/TR/ldp/ Linked Data Platform]]
 	 *  This is a simplified model.
@@ -53,6 +42,13 @@ object Server:
 			case Container(content, _) => content.keys.mkString("- ", "\n- ", "\n")
 			case TextResource(content, _) => content
 	end LDP
+
+	def now: Instant = Clock.systemUTC().instant()
+	val slugCounter: Iterator[Int] = new Iterator[Int] {
+		var c = 0
+		override def hasNext: Boolean = true
+		override def next(): Int = c + 1
+	}
 
 	/** We can think of a web server as just a root container with a number of resources
 	 * (which can themselves be containers), each named by a key of type String.
@@ -98,7 +94,7 @@ object Server:
 			val newCntr: Option[LDP] = server.focus(_.index(path).as[LDP.Container])
 				.modifyOption { (cntr: LDP.Container) =>
 					val index: Map[String, LDP] = cntr.content
-					val name = if index.get(slug).isEmpty then slug else s"${slug}_${counter.next()}"
+					val name = if index.get(slug).isEmpty then slug else s"${slug}_${slugCounter.next()}"
 					val newRes = newcontent match
 						case LDPC => LDP.Container()
 						case text: String => LDP.TextResource(text)
