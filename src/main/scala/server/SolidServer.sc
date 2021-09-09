@@ -21,5 +21,8 @@ rt2.GET(p)
 val (rt3: Container,resp) = rt2.POST(p)("blog1","My first blog entry")
 rt3.GET(FPath("blog1",p))
 
+val bb = rt3.PUT(FPath("blog1",p),NonCR("A Much better blog entry"))
+val x = rt3.PUT(p)
+val xx = rt3.PUT(CPath(List(S("foo"),S("bar"),S("baz"),S("bang"))))
 rt3.DELETE(FPath("blog1",p))
 rt3.DELETE(p)

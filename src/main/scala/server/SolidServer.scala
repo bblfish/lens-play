@@ -177,6 +177,11 @@ object SolidServer:
 				case Some(res: Solid) => Response(200, res.summary)
 				case None => Response(404, "Content could not be found")
 
+		def PUT(path: Path.FPath, nonCR: NonCR): Solid.Container =
+			rt.at(path).replace(Some(nonCR))(server)
+
+		def PUT(path: Path.CPath): Option[Solid.Container] =
+			rt.at(path).replaceOption(Option(Container()))(server)
 
 		def POST(path: Path.CPath)(
 			slug: String, newcontent: String | LDPC.type
