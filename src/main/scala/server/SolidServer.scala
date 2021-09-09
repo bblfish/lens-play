@@ -108,9 +108,10 @@ object SolidServer:
 	given At[Container, Segment, Option[Container]] =
 		At(key => Focus[Container](_.subContainers.at(key)))
 
-	given ( //note: crAt is not used, could it simplify the code?
-		using crAt: At[Container, Segment, Option[Container]]
-	): At[Container, Path.CPath, Option[Container]] =
+	// it should be possible to compose this recursively,
+	// but I need to create an At[Option[Container], Path.CPath, Option[Container]]
+	// from the given above
+	given At[Container, Path.CPath, Option[Container]] =
 		At[Container, Path.CPath, Option[Container]]( cp =>
 			Lens[Container,Option[Container]]( (container: Container) =>
 				def find(c: Container, remaining: List[Segment]): Option[Container] =
@@ -134,14 +135,14 @@ object SolidServer:
 		)
 
 	given (
-		using crAt: At[Container, Path.CPath, Option[Container]]
+		// how do I lift fileAt to At[Option[Container]... ?
+		using fileAt: At[Container, String, Option[NonCR]],
+		crAt: At[Container, Path.CPath, Option[Container]]
 	): At[Container, Path.FPath, Option[NonCR]] =
 		At[Container, Path.FPath, Option[NonCR]]{ (path: Path.FPath) =>
-			crAt.at(path.cpath) andThen Lens[Option[Container], Option[NonCR]](
-					optCntr => optCntr.flatMap(_.nonCR.get(path.name))
-				)(
-					newResOpt => optCntr =>
-						optCntr.map { cntr =>
+			crAt.at(path.cpath) andThen
+				Lens[Option[Container], Option[NonCR]](_.flatMap(_.nonCR.get(path.name)))(
+					newResOpt => _.map { cntr =>
 							val nonCrMap = cntr.nonCR.updatedWith(path.name)(_ => newResOpt)
 							cntr.copy(nonCR = nonCrMap)
 						}
