@@ -100,7 +100,6 @@ object SolidServer:
 
 	case class Response(code: Int, content: String)
 
-
 	import Solid.*
 
 	given At[Container, String, Option[NonCR]] =
@@ -109,7 +108,7 @@ object SolidServer:
 	given At[Container, Segment, Option[Container]] =
 		At(key => Focus[Container](_.subContainers.at(key)))
 
-	given (
+	given ( //note: crAt is not used, could it simplify the code?
 		using crAt: At[Container, Segment, Option[Container]]
 	): At[Container, Path.CPath, Option[Container]] =
 		At[Container, Path.CPath, Option[Container]]( cp =>
@@ -149,7 +148,6 @@ object SolidServer:
 				)
 		}
 
-
 	val rt = Iso.id[Container]
 
 	/** typeclass for Index on a Container type S given a List of indexes.
@@ -162,9 +160,15 @@ object SolidServer:
 //	}
 
 	/** The HTTP methods that one can use to interact with a Container.
-	 * See local <src/test/scala/server/ServerTests.scala> for usage.
+	 * See SolidServer.sc in this package for user.
+	 * todo: write out <src/test/scala/server/SolidServerTests.scala> for usage.
 	 * Docs to look at:
-	 * [[https://www.optics.dev/Monocle/docs/focus monocle focus]]  */
+	 * [[https://www.optics.dev/Monocle/docs/faq FAQ on the difference between `index`` and `at`]]
+	 * Notice that we have a lot of duplication, as we distinguish between contents that
+	 * are containers and those that are "files". Would a Heterogenous map gotten by merging
+	 * the subcontainers and the nonCR maps help?
+	 * Would that require dependent lenses?
+	 * */
 	extension (server: Solid.Container)(using
 		ctrAt: At[Solid.Container, Path.CPath, Option[Container]],
 		fAt : At[Container, Path.FPath, Option[NonCR]]
