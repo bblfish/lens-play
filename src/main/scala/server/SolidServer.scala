@@ -37,6 +37,10 @@ import scala.collection.immutable.*
  *     <li>  ...
  *    </ul>
  *  </ol>
+ *  Having a direct mapping such as this is what I called an Intutive Container
+ *  https://www.w3.org/2012/ldp/track/issues/50
+ *  And it is what Solid recommends, but does not provide a way to describe (yet).
+ *  Hence we call this here a [[https://solidproject.org/TR/ Solid Server]].
  */
 object SolidServer:
 	/** segments are strings that cannot contain `/`
@@ -68,6 +72,8 @@ object SolidServer:
 		//we allow a container to have a resource and a container with the same name
 		//This allows one to create containers without overwriting old resources
 		//it is equivalent to allowing `/foo` and `/foo/`
+		//With a Heterogenoous Map one could combine those two maps into one, and have the type of the map value
+		//depend on the type of the key.
 		case Container(
 			subContainers: Map[Segment,Container] = Map[Segment,Container](),
 			nonCR: Map[String,NonCR] = Map[String,NonCR](),
