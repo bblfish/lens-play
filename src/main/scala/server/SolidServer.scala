@@ -15,13 +15,14 @@ import scala.collection.immutable.*
  *
  * Thanks to Ken Scambler for major simplifications using Enum and list based indexes
  * [[https://discord.com/channels/632277896739946517/882978685936877608/883198894350163989 in Typelevel Monocle Discord Channel]]
- *
+ * (That was evident in the previous version at Server.scala, and is a bit lost here)
+
  * For an intro to Monocle see the video https://twitter.com/bblfish/status/1413758476896153601
  * and the thread of references above it. Documentation https://www.optics.dev/Monocle/
  *
- *  This (server.Solid) is an improvement over server.Server in the following way: <ol>
+ *  This (server.Solid) is an improvement over server.Server.scala in the following way: <ol>
  *  <li> We use Lenses to select paths, as this gives CRUD (create, read, update, delete) functionality
- *  <li> To use lenseses and paths, we need paths to always have a reference in a
+ *  <li> To use lenses and paths, we need paths to always have a reference in a
  *  Container whatever their length, even if their value is just empty.
  *  As a consequence creating a resource at a path, automatically creates all intermediate
  *  containers.
