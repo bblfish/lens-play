@@ -12,6 +12,7 @@ import scala.collection.immutable.*
  * would look like, to see if this can bring some extra conceptual clarity
  * to questions in Solid.
  * See [[https://gitlab.com/web-cats/CG/-/issues/28 Web Cats Lenses issue 28]].
+ * For a nice historical overview of Lenses see Jules Hedges 2018 blog post [[https://julesh.com/2018/08/16/lenses-for-philosophers/ Lenses for Philosophers]]
  *
  * Thanks to Ken Scambler for major simplifications using Enum and list based indexes
  * [[https://discord.com/channels/632277896739946517/882978685936877608/883198894350163989 in Typelevel Monocle Discord Channel]]
@@ -219,6 +220,7 @@ object SolidServer:
 			path match
 			case cp: Path.CPath => rt.at(cp).replace(None)(server)
 			case fp: Path.FPath => rt.at(fp).replace(None)(server)
+		//the duplication above could I guess be removed  with Heterogeneous Map for content & Dependently typed lenses
 
 end SolidServer
 
